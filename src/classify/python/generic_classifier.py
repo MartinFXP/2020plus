@@ -6,7 +6,7 @@ import src.utils.python.math as mymath
 import src.features.python.feature_utils as futils
 import numpy as np
 from numpy import interp
-from sklearn import cross_validation
+from sklearn.model_selection import KFold
 import sklearn.metrics as metrics
 import pandas as pd
 
@@ -62,8 +62,8 @@ class GenericClassifier(object):
             futils.check_num_classes(self.y) # warn user if not 3 classes
 
             # set up stratified kfold iterator
-            k_fold = cross_validation.StratifiedKFold(self.y,
-                                                      n_folds=k)
+            kf = KFold(n_splits=k)
+            k_fold = kf.split(self.y)
 
             # obtain predictions from single round of kfold validation
             for nfold, (train_ix, test_ix) in enumerate(k_fold):
@@ -78,16 +78,16 @@ class GenericClassifier(object):
                     # figure out sample weights
                     num_train = len(train_ix)
                     sample_weight = np.zeros(num_train)
-                    onco_ix = np.nonzero(self.y.ix[tmp_train_ix]==self.onco_num)[0]
-                    tsg_ix = np.nonzero(self.y.ix[tmp_train_ix]==self.tsg_num)[0]
-                    other_ix = np.nonzero(self.y.ix[tmp_train_ix]==self.other_num)[0]
+                    onco_ix = np.nonzero(self.y.loc[tmp_train_ix]==self.onco_num)[0]
+                    tsg_ix = np.nonzero(self.y.loc[tmp_train_ix]==self.tsg_num)[0]
+                    other_ix = np.nonzero(self.y.loc[tmp_train_ix]==self.other_num)[0]
                     sample_weight[onco_ix] = 1. / len(onco_ix)
                     sample_weight[tsg_ix] = 1. / len(tsg_ix)
                     sample_weight[other_ix] = 1. / len(other_ix)
 
                     # do training with sample weighting
-                    self.clf.fit(self.x.ix[tmp_train_ix].copy(),
-                                 self.y.ix[tmp_train_ix].copy(),
+                    self.clf.fit(self.x.loc[tmp_train_ix].copy(),
+                                 self.y.loc[tmp_train_ix].copy(),
                                  sample_weight=sample_weight)
                 else:
                     # do training without weighting
@@ -133,12 +133,12 @@ class GenericClassifier(object):
         for i in range(self.total_iter):
             # predict on genes never found in training data, so there
             # is no worry about overfitting.
-            test_feat = self.x.ix[new_genes]
+            test_feat = self.x.loc[new_genes]
             if not test_feat.empty:
                 self.clf.set_model(i+1, 1)
                 tmp_prob = self.clf.predict_proba(test_feat)
-                onco_prob.ix[new_genes] += tmp_prob[:, self.onco_num]
-                tsg_prob.ix[new_genes] += tmp_prob[:, self.tsg_num]
+                onco_prob.loc[new_genes] += tmp_prob[:, self.onco_num]
+                tsg_prob.loc[new_genes] += tmp_prob[:, self.tsg_num]
 
             # obtain predictions from single round of kfold validation
             col = 'X{0}'.format(i+1)
@@ -149,11 +149,11 @@ class GenericClassifier(object):
                 tmp_test_ix = self.x.index.intersection(good_ix)
 
                 # predict test data in kfold validation
-                test_feat = self.x.ix[tmp_test_ix]
+                test_feat = self.x.loc[tmp_test_ix]
                 if not test_feat.empty:
                     tmp_prob = self.clf.predict_proba(test_feat)
-                    onco_prob.ix[tmp_test_ix] += tmp_prob[:, self.onco_num]
-                    tsg_prob.ix[tmp_test_ix] += tmp_prob[:, self.tsg_num]
+                    onco_prob.loc[tmp_test_ix] += tmp_prob[:, self.onco_num]
+                    tsg_prob.loc[tmp_test_ix] += tmp_prob[:, self.tsg_num]
 
             self.num_pred += 1
 
@@ -189,8 +189,8 @@ class GenericClassifier(object):
             overall_pred = np.zeros(num_genes)
 
             # set up stratified kfold iterator
-            k_fold = cross_validation.StratifiedKFold(self.y,
-                                                      n_folds=k)
+            kf = KFold(n_splits=k)
+            k_fold = kf.split(self.y)
 
             # evaluate k-fold cross validation
             for train_ix, test_ix in k_fold:
@@ -256,8 +256,8 @@ class GenericClassifier(object):
             futils.check_num_classes(self.y) # warn user if not 3 classes
 
             # set up stratified kfold iterator
-            k_fold = cross_validation.StratifiedKFold(self.y,
-                                                      n_folds=k)
+            kf = KFold(n_splits=k)
+            k_fold = kf.split(self.y)
 
             # obtain predictions from single round of kfold validation
             for train_ix, test_ix in k_fold:
@@ -269,26 +269,26 @@ class GenericClassifier(object):
                     # figure out sample weights
                     num_train = len(train_ix)
                     sample_weight = np.zeros(num_train)
-                    onco_ix = np.nonzero(self.y.ix[tmp_train_ix]==self.onco_num)[0]
-                    tsg_ix = np.nonzero(self.y.ix[tmp_train_ix]==self.tsg_num)[0]
-                    other_ix = np.nonzero(self.y.ix[tmp_train_ix]==self.other_num)[0]
+                    onco_ix = np.nonzero(self.y.loc[tmp_train_ix]==self.onco_num)[0]
+                    tsg_ix = np.nonzero(self.y.loc[tmp_train_ix]==self.tsg_num)[0]
+                    other_ix = np.nonzero(self.y.loc[tmp_train_ix]==self.other_num)[0]
                     sample_weight[onco_ix] = 1. / len(onco_ix)
                     sample_weight[tsg_ix] = 1. / len(tsg_ix)
                     sample_weight[other_ix] = 1. / len(other_ix)
 
                     # do training with sample weighting
-                    self.clf.fit(self.x.ix[tmp_train_ix].copy(),
-                                 self.y.ix[tmp_train_ix].copy(),
+                    self.clf.fit(self.x.loc[tmp_train_ix].copy(),
+                                 self.y.loc[tmp_train_ix].copy(),
                                  sample_weight=sample_weight)
                 else:
                     # do training without weighting
-                    self.clf.fit(self.x.ix[tmp_train_ix].copy(),
-                                 self.y.ix[tmp_train_ix].copy())
+                    self.clf.fit(self.x.loc[tmp_train_ix].copy(),
+                                 self.y.loc[tmp_train_ix].copy())
 
                 # predict test data in kfold validation
-                tmp_prob = self.clf.predict_proba(self.x.ix[tmp_test_ix])
-                onco_prob.ix[tmp_test_ix] += tmp_prob[:, self.onco_num]
-                tsg_prob.ix[tmp_test_ix] += tmp_prob[:, self.tsg_num]
+                tmp_prob = self.clf.predict_proba(self.x.loc[tmp_test_ix])
+                onco_prob.loc[tmp_test_ix] += tmp_prob[:, self.onco_num]
+                tsg_prob.loc[tmp_test_ix] += tmp_prob[:, self.tsg_num]
 
             self.num_pred += 1
 

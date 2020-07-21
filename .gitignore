@@ -54,3 +54,5 @@ Session.vim
 
 log/*
 .ropeproject
+*.DS_Store
+pancan_example

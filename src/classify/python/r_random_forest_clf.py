@@ -2,6 +2,7 @@
 RPy2 is used to interface with R."""
 import readline  # hopefully fix libreadline error
 import rpy2.robjects as ro
+from rpy2.robjects.conversion import localconverter
 from rpy2.robjects import pandas2ri
 from rpy2.robjects import numpy2ri
 import pandas as pd
@@ -47,6 +48,10 @@ class MyClassifier(object):
         # R function for fitting a random forest
         ro.r('''rf_fit <- function(df, ntree, sampSize){
                 df$true_class <- as.factor(df$true_class)
+                colnames(df) <- unlist(lapply(colnames(df), function(x) {
+                    y <- gsub(" |-", "_", x)
+                    return(y)
+                }))
                 rf_clf <<- randomForest(true_class~.,
                                         data=df,
                                         replace=TRUE,
@@ -67,6 +72,10 @@ class MyClassifier(object):
 
         # R function for predicting class probability
         ro.r('''rf_pred_prob <- function(rf, xtest){
+                colnames(xtest) <- unlist(lapply(colnames(xtest), function(x) {
+                    y <- gsub(" |-", "_", x)
+                    return(y)
+                }))
                 prob <- predict(rf, xtest, type="prob")
                 return(prob)
              }''')
@@ -75,6 +84,10 @@ class MyClassifier(object):
         # R function for predicting class
         if new_pandas_flag:
             ro.r('''rf_pred <- function(rf, xtest){
+                    colnames(xtest) <- unlist(lapply(colnames(xtest), function(x) {
+                        y <- gsub(" |-", "_", x)
+                        return(y)
+                    }))
                     prob <- predict(rf, xtest)
                     tmp <- as.integer(prob)
                     result.list <- list(pred=tmp, mynames=row.names(xtest))
@@ -130,14 +143,16 @@ class MyClassifier(object):
 
         # convert
         if new_pandas_flag:
-            r_xtrain = pandas2ri.py2ri(xtrain)
+            with localconverter(ro.default_converter + pandas2ri.converter):
+                r_xtrain = ro.conversion.py2rpy(xtrain)
         else:
             r_xtrain = com.convert_to_r_dataframe(xtrain)
         #ro.globalenv['trainData'] = r_xtrain
         self.rf = self.rf_fit(r_xtrain, self.ntrees, self.sample_size)
         r_imp = self.rf_imp(self.rf)  # importance dataframe in R
         if new_pandas_flag:
-            self.feature_importances_ = pandas2ri.ri2py(r_imp)
+            with localconverter(ro.default_converter + pandas2ri.converter):
+                self.feature_importances_ = ro.conversion.rpy2py(r_imp)
         else:
             self.feature_importances_ = com.convert_robj(r_imp)
         #self.feature_importances_ = pandas2ri.ri2py(r_imp)
@@ -167,7 +182,8 @@ class MyClassifier(object):
             # rpy2 is a complete joke of a package
             try:
                 # use this way for conversion for bugged rpy2 versions
-                self.cv_folds = pandas2ri.ri2py(ro.r["cvFoldDf"])
+                with localconverter(ro.default_converter + pandas2ri.converter):
+                    self.cv_folds = ro.conversion.rpy2py(ro.r["cvFoldDf"])
             except:
                 # this should be the correct way to convert
                 # but several versions of rpy2 have a bug
@@ -203,7 +219,8 @@ class MyClassifier(object):
     def set_cv_fold(self, df):
         """Send which genes are valid test sets for each CV fold."""
         if new_pandas_flag:
-            r_df = pandas2ri.py2ri(df)
+            with localconverter(ro.default_converter + pandas2ri.converter):
+                r_df = ro.conversion.py2rpy(df)
         else:
             r_df = com.convert_to_r_dataframe(df)
         ro.globalenv['cvFoldDf'] = r_df
@@ -238,7 +255,8 @@ class MyClassifier(object):
             features for test set
         """
         if new_pandas_flag:
-            r_xtest = pandas2ri.py2ri(xtest)
+            with localconverter(ro.default_converter + pandas2ri.converter):
+                r_xtest = ro.conversion.py2rpy(xtest)
         else:
             r_xtest = com.convert_to_r_dataframe(xtest)
         #r_xtest = pandas2ri.py2ri(xtest)
@@ -247,8 +265,10 @@ class MyClassifier(object):
             #py_pred = pandas2ri.ri2py(pred)
             tmp_genes = pred[1]
             tmp_pred_class = pred[0]
-            genes = pandas2ri.ri2py(tmp_genes)
-            pred_class = pandas2ri.ri2py(tmp_pred_class)
+            with localconverter(ro.default_converter + pandas2ri.converter):
+                genes = ro.conversion.rpy2py(tmp_genes)
+            with localconverter(ro.default_converter + pandas2ri.converter):
+                pred_class = ro.conversion.rpy2py(tmp_pred_class)
         else:
             py_pred = com.convert_robj(pred)
             genes, pred_class = zip(*py_pred.items())
@@ -269,13 +289,15 @@ class MyClassifier(object):
             features for test set
         """
         if new_pandas_flag:
-            r_xtest = pandas2ri.py2ri(xtest)
+            with localconverter(ro.default_converter + pandas2ri.converter):
+                r_xtest = ro.conversion.py2rpy(xtest)
         else:
             r_xtest = com.convert_to_r_dataframe(xtest)
         #r_xtest = pandas2ri.ri2py(xtest)
         pred_prob = self.rf_pred_prob(self.rf, r_xtest)
         if new_pandas_flag:
-            py_pred_prob = pandas2ri.ri2py(pred_prob)
+            with localconverter(ro.default_converter + pandas2ri.converter):
+                py_pred_prob = ro.conversion.rpy2py(pred_prob)
         else:
             py_pred_prob = com.convert_robj(pred_prob)
             py_pred_prob = py_pred_prob.values
